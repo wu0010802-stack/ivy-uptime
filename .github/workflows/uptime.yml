@@ -1,0 +1,43 @@
+name: prod-uptime
+
+on:
+  schedule:
+    - cron: '*/5 * * * *' # GitHub cron 實際間隔常為 5–15 分鐘（尖峰時段會延遲）
+  workflow_dispatch:
+
+permissions:
+  issues: write
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 後端 /health/ready（含 DB 連線；維護模式會回 503）
+        run: |
+          curl -fsS -m 20 --retry 3 --retry-delay 10 --retry-all-errors \
+            https://ivymanagesystem-api.zeabur.app/health/ready
+      - name: 前端 ivypreschool.tw
+        run: |
+          curl -fsS -m 20 --retry 3 --retry-delay 10 --retry-all-errors -o /dev/null \
+            https://ivypreschool.tw/
+      - name: 失敗 → 開 incident issue（已有未關閉的就不重開）
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          open_count=$(gh issue list -R "$GITHUB_REPOSITORY" --state open --label incident --json number --jq 'length')
+          if [ "$open_count" = "0" ]; then
+            gh issue create -R "$GITHUB_REPOSITORY" \
+              --title "🔴 prod 健康檢查失敗（$(date -u '+%Y-%m-%d %H:%M') UTC）" \
+              --label incident \
+              --body "有端點檢查失敗（後端 /health/ready 或前端首頁）。詳見 run：$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+          fi
+      - name: 恢復 → 自動關閉 incident issue
+        if: success()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for n in $(gh issue list -R "$GITHUB_REPOSITORY" --state open --label incident --json number --jq '.[].number'); do
+            gh issue close "$n" -R "$GITHUB_REPOSITORY" -c "✅ $(date -u '+%Y-%m-%d %H:%M') UTC 健康檢查恢復通過"
+          done

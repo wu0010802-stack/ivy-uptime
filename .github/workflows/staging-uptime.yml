@@ -1,0 +1,17 @@
+name: staging-uptime
+
+# staging 測試機監控（每 30 分鐘）。開發期間 staging 常態性紅燈時，
+# 可一鍵停用：repo → Actions → staging-uptime → Disable workflow
+on:
+  schedule:
+    - cron: '11,41 * * * *'
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: staging 後端 /health/ready
+        run: |
+          curl -fsS -m 20 --retry 3 --retry-delay 10 --retry-all-errors \
+            https://ivy-staging-api.zeabur.app/health/ready
