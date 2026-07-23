@@ -33,6 +33,21 @@ jobs:
               --label incident \
               --body "有端點檢查失敗（後端 /health/ready 或前端首頁）。詳見 run：$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
           fi
+      - name: 失敗 → LINE 推播通知（需設 secrets：LINE_CHANNEL_ACCESS_TOKEN + LINE_TARGET_ID）
+        if: failure()
+        env:
+          LINE_TOKEN: ${{ secrets.LINE_CHANNEL_ACCESS_TOKEN }}
+          LINE_TARGET: ${{ secrets.LINE_TARGET_ID }}
+        run: |
+          if [ -z "$LINE_TOKEN" ] || [ -z "$LINE_TARGET" ]; then
+            echo "LINE secrets 未設定，略過推播（僅開了 GitHub issue）"; exit 0
+          fi
+          MSG="🔴 義華 prod 健康檢查失敗（$(date -u '+%m-%d %H:%M') UTC）\n後端 /health/ready 或前端首頁異常。\nrun: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+          curl -fsS -X POST https://api.line.me/v2/bot/message/push \
+            -H "Authorization: Bearer $LINE_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d "{\"to\":\"$LINE_TARGET\",\"messages\":[{\"type\":\"text\",\"text\":\"$MSG\"}]}"
+
       - name: 恢復 → 自動關閉 incident issue
         if: success()
         env:
