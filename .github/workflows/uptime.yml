@@ -13,10 +13,14 @@ jobs:
   check:
     runs-on: ubuntu-latest
     steps:
-      - name: 後端 /health/ready（含 DB 連線；維護模式會回 503）
+      - name: 後端 /api/public/tenant-meta（經前端同源代理；依 Host 查 DB，維護模式會回 503）
         run: |
-          curl -fsS -m 20 --retry 3 --retry-delay 10 --retry-all-errors \
-            https://ivymanagesystem-api.zeabur.app/health/ready
+          # 2026-10-19：Zeabur 已刪（2026-08-30），prod 改 Railway；ivy-api 服務沒有公開網域，
+          # 只能經 ivypreschool.tw 的 /api/* 同源代理觸及。prod 現行版本（2026-08-31）尚未
+          # 掛 /api/health/ready（實測 404，staging 已有），故暫以 tenant-meta 當後端＋DB 探針；
+          # 下次升 prod 後可改回 https://ivypreschool.tw/api/health/ready。
+          curl -fsS -m 20 --retry 3 --retry-delay 10 --retry-all-errors -o /dev/null \
+            https://ivypreschool.tw/api/public/tenant-meta
       - name: 前端 ivypreschool.tw
         run: |
           curl -fsS -m 20 --retry 3 --retry-delay 10 --retry-all-errors -o /dev/null \
